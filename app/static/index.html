@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Persistent Goal-Agent Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <span class="brand-icon">⚡</span>
+        <h1 class="brand-title">Goal-Agent</h1>
+        <span class="badge badge-subtle">Local-First Durable Platform</span>
+      </div>
+      <div class="nav-actions">
+        <div class="server-status" id="server-status">
+          <span class="status-dot"></span>
+          <span class="status-label">Connecting...</span>
+        </div>
+        <button id="btn-new-goal" class="btn btn-primary">+ New Goal</button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <div class="main-layout">
+      <!-- Sidebar: Recent Tasks -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2>Tasks</h2>
+          <button id="btn-refresh-tasks" class="btn-icon" title="Refresh task list">🔄</button>
+        </div>
+        <div class="task-list" id="task-list">
+          <div class="empty-state">Loading tasks...</div>
+        </div>
+      </aside>
+
+      <!-- Main Panel -->
+      <main class="content-panel">
+        <!-- View 1: New Goal Composer -->
+        <section id="view-create" class="panel-view">
+          <div class="panel-header">
+            <h2>Submit a New Goal</h2>
+            <p class="subtitle">The engine will autonomously plan, execute tools, verify outcomes, and continue until verified.</p>
+          </div>
+
+          <form id="goal-form" class="goal-form">
+            <div class="form-group">
+              <label for="goal-objective">Goal Objective <span class="required">*</span></label>
+              <textarea 
+                id="goal-objective" 
+                rows="4" 
+                placeholder="e.g. Add JWT authentication to the API without breaking existing tests; verify with pytest." 
+                required
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="goal-workspace">Target Workspace Directory <span class="required">*</span></label>
+              <input 
+                type="text" 
+                id="goal-workspace" 
+                placeholder="e.g. ./my-project or C:\Users\user\workspace" 
+                required 
+              />
+              <span class="field-hint">Must reside within an allowed workspace root.</span>
+            </div>
+
+            <div class="form-group">
+              <label for="model-preset">AI preset</label>
+              <select id="model-preset" class="form-select">
+                <option value="auto">Automatic</option>
+                <option value="free_cloud">Free Cloud</option>
+                <option value="free_local">Free Local (Ollama)</option>
+              </select>
+              <div id="preset-info-card" class="preset-card">
+                <div class="preset-card-header">
+                  <span id="preset-title" class="preset-title">Loading profile...</span>
+                  <span id="preset-cost-badge" class="badge badge-subtle">$0.00</span>
+                </div>
+                <p id="preset-description" class="preset-desc">Checking your local setup…</p>
+                <p id="preset-setup-hint" class="field-hint"></p>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col">
+                <label for="max-iterations">Max Iterations</label>
+                <input type="number" id="max-iterations" value="40" min="1" max="500" />
+              </div>
+
+              <div class="form-group col">
+                <label for="max-minutes">Max Minutes</label>
+                <input type="number" id="max-minutes" value="120" min="1" max="1440" />
+              </div>
+
+              <div class="form-group col">
+                <label for="max-cost">Max Cost ($ USD)</label>
+                <input type="number" id="max-cost" value="25.00" step="0.5" min="0" max="500" />
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary btn-large">Launch Autonomous Execution</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- View 2: Task Monitor -->
+        <section id="view-task" class="panel-view hidden">
+          <!-- Task Top Bar -->
+          <div class="task-banner">
+            <div class="task-info">
+              <div class="task-heading-row">
+                <span id="task-status-pill" class="badge badge-status">PENDING</span>
+                <span id="task-id-display" class="task-id-code">task-...</span>
+                <span id="task-time-display" class="timestamp-label"></span>
+              </div>
+              <h2 id="task-objective-title" class="task-objective">Objective text</h2>
+              <div id="task-workspace-display" class="task-workspace">Workspace: -</div>
+            </div>
+
+            <div class="task-controls">
+              <button id="btn-pause-task" class="btn btn-secondary">Pause</button>
+              <button id="btn-resume-task" class="btn btn-secondary hidden">Resume</button>
+              <button id="btn-cancel-task" class="btn btn-danger">Cancel</button>
+              <button id="btn-manual-refresh" class="btn btn-secondary" title="Refresh">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <!-- Gated Approval Banner -->
+          <div id="approval-banner" class="alert-banner hidden">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+              <strong>Human Approval Required</strong>
+              <p id="approval-description">A gated tool action is awaiting your confirmation before execution.</p>
+              <div class="alert-actions">
+                <button id="btn-approve-action" class="btn btn-success btn-small">Approve & Resume</button>
+                <button id="btn-deny-action" class="btn btn-danger btn-small">Deny Action</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blocked Reason Banner (if blocked) -->
+          <div id="blocked-banner" class="alert-banner alert-danger hidden">
+            <div class="alert-icon">🛑</div>
+            <div class="alert-content">
+              <strong>Goal Blocked</strong>
+              <p id="blocked-reason-text"></p>
+            </div>
+          </div>
+
+          <!-- Metrics Row -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-label">Iterations</div>
+              <div class="metric-value"><span id="metric-iterations">0</span> <span class="metric-limit">/ <span id="metric-max-iterations">40</span></span></div>
+              <div class="progress-bar"><div id="progress-iterations" class="progress-fill" style="width: 0%"></div></div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">Elapsed Time</div>
+              <div class="metric-value"><span id="metric-minutes">0.0</span> <span class="metric-limit">/ <span id="metric-max-minutes">120</span> min</span></div>
+              <div class="progress-bar"><div id="progress-minutes" class="progress-fill" style="width: 0%"></div></div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">Cost USD</div>
+              <div class="metric-value">$<span id="metric-cost">0.00</span> <span class="metric-limit">/ $<span id="metric-max-cost">25.00</span></span></div>
+              <div class="progress-bar"><div id="progress-cost" class="progress-fill" style="width: 0%"></div></div>
+            </div>
+          </div>
+
+          <!-- Tabs for Details -->
+          <div class="details-section">
+            <div class="tab-nav">
+              <button class="tab-btn active" data-tab="tab-criteria">Success Criteria (<span id="criteria-count">0</span>)</button>
+              <button class="tab-btn" data-tab="tab-events">Event Log (<span id="events-count">0</span>)</button>
+              <button class="tab-btn" data-tab="tab-artifacts">Artifacts & Reports</button>
+            </div>
+
+            <div class="tab-content">
+              <!-- Criteria Tab -->
+              <div id="tab-criteria" class="tab-pane active">
+                <div id="criteria-list" class="criteria-list">
+                  <div class="empty-state">No criteria defined yet. The planner will populate these.</div>
+                </div>
+              </div>
+
+              <!-- Events Tab -->
+              <div id="tab-events" class="tab-pane">
+                <div class="events-toolbar">
+                  <label class="toggle-control">
+                    <input type="checkbox" id="auto-refresh-toggle" checked />
+                    <span>Auto-refresh (every 3s)</span>
+                  </label>
+                  <button id="btn-clear-logs" class="btn-text">Clear view</button>
+                </div>
+                <div id="events-timeline" class="events-timeline">
+                  <div class="empty-state">No events recorded.</div>
+                </div>
+              </div>
+
+              <!-- Artifacts Tab -->
+              <div id="tab-artifacts" class="tab-pane">
+                <div class="artifacts-container">
+                  <div class="artifacts-sidebar">
+                    <ul id="artifacts-list" class="artifacts-tree">
+                      <li class="empty-state">No artifacts available yet.</li>
+                    </ul>
+                    <button id="btn-load-report" class="btn btn-secondary btn-small" style="margin-top: 12px; width: 100%;">View Outcome Report</button>
+                  </div>
+                  <div class="artifact-preview">
+                    <div class="artifact-preview-header">
+                      <span id="preview-filename">Select an artifact to view</span>
+                    </div>
+                    <pre id="artifact-content"><code>No content selected.</code></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

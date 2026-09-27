@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /workspace
+
+# The runtime has no Docker socket and no network access; this image only provides
+# language tooling needed to test a mounted repository.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml /tmp/goal-agent/pyproject.toml
+COPY app /tmp/goal-agent/app
+RUN pip install --no-cache-dir /tmp/goal-agent
+
+CMD ["python", "--version"]
